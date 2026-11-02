@@ -23,6 +23,8 @@ cp teams/example.yaml teams/team.yaml     then edit it: repo, project, storage, 
 ./factory.sh migrate [role...]            remove clean worktrees that are not on the storage volume
                                           (never one a running process works in)
 ./factory.sh down --yes [role...]         kill seats (worktrees are kept)
+./factory.sh run-exclusive -- <command>   run a heavy command (a gate, an e2e run) one at a time on this
+                                          host, waiting for the run before it (needs no team file)
 ./factory.sh -c path/to/other.yaml up     use a different team file
 ```
 
@@ -38,6 +40,8 @@ Options:
   `teams/` run on the default tmux server: see [Throwaway teams](#throwaway-teams). On `say` and
   `attach` it must be the first argument.
 - `-c` (or `--config`) comes before the command.
+- `run-exclusive` takes the command after `--`, as an argument list. See
+  [One heavy run at a time](gate.md#one-heavy-run-at-a-time) for the lock and what it covers.
 
 ## Which team file
 

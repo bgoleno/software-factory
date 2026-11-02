@@ -28,7 +28,10 @@ exist. A throwaway team's worktrees on the volume are not removed by `down`; rem
 ## The end-to-end test
 
 `TEST_VOLUME=/Volumes/YourDrive test/e2e.sh` runs the launcher against a throwaway repo with a stand-in
-`claude` on a private tmux server.
+`claude` on a private tmux server. From a seat, or with other teams on the machine, run it through
+`./factory.sh run-exclusive -- env -u TMUX TEST_VOLUME=/Volumes/YourDrive test/e2e.sh`, so that only one
+heavy run loads the machine at a time ([One heavy run at a time](gate.md#one-heavy-run-at-a-time)).
+The run uses a lock of its own for its run-exclusive cases, never the real one.
 
 ### Where the cases live
 

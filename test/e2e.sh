@@ -16,8 +16,10 @@ ROOT="Projects/_teamtest-$$"; VOL=${TEST_VOLUME:-}
 # would fail only when run from a seat, and a stand-in seat could reach the real seat's tmux or
 # messaging socket (#75). This is the one list of what is cleared; add any new launcher variable here.
 # It runs before anything below exports a TEAM_* variable (TEAM_VIEW=0), or it would clear it.
-for v in $(compgen -e); do case $v in DISABLE_AUTOUPDATER|TEAM_*|CLAUDE*|TMUX*) unset "$v" ;; esac; done
-export TMUX_TMPDIR=$T/tmux TEAM_STATE_DIR=$T/state
+# FACTORY_*: run under run-exclusive (#214), the run inherits its lock's variables; nothing in it may
+# take or skip the real lock, so the run has a lock of its own in $T.
+for v in $(compgen -e); do case $v in DISABLE_AUTOUPDATER|TEAM_*|CLAUDE*|TMUX*|FACTORY_*) unset "$v" ;; esac; done
+export TMUX_TMPDIR=$T/tmux TEAM_STATE_DIR=$T/state FACTORY_RUN_LOCK=$T/rx-lock/run-exclusive.lock
 # No run may drive iTerm (#93). A stand-in osascript first on PATH records every call and does
 # nothing, and the run fails at the end if it was called: `up` opens a real iTerm window unless told
 # not to, every run left its windows on the user's screen, and enough of them used up every pty on
@@ -62,7 +64,7 @@ bad(){ echo "FAIL $1"; fail=$((fail+1)); e2e_blank "$1" || e2e_names="$e2e_names
 # return, continue or break ends the file (continue and break also act on the loop that sources it).
 # So each file's last line is e2e_end=<its name>, checked after it is sourced, and the list of files
 # that got there is checked after the loop, which catches the continue and break that skip the check.
-AREAS="launch settings say say-sender worktrees view delivery config skills warnings gate hooks claude-copy prompts live"
+AREAS="launch settings say say-sender worktrees view delivery config skills warnings gate hooks claude-copy prompts exclusive live"
 E2E_DIR=$SRC/test/e2e
 for e2e_f in "$E2E_DIR"/*.sh; do e2e_a=${e2e_f##*/}; e2e_a=${e2e_a%.sh}; [ "$e2e_a" = lib ] && continue
   case " $AREAS " in *" $e2e_a "*) ;; *) echo "test/e2e/$e2e_a.sh is not in AREAS in test/e2e.sh: add it there, or it never runs" >&2; exit 2 ;; esac

@@ -51,3 +51,38 @@ Roles without the switch never run it. The example gives it to the engineers and
 - A gated seat's settings set `disableAllHooks: false`, so a `.claude/settings.json` in the project
   cannot switch the gate off. That also turns the user's own hooks back on for that seat if
   `~/.claude/settings.json` had switched them all off.
+- The stop gate does not take the [run-exclusive](#one-heavy-run-at-a-time) lock yet
+  ([#236](../../../issues/236)). A wait for it would count against `repo.gate_timeout` and come back as a
+  failing gate, sending the seat back for a failure that is not real.
+
+## One heavy run at a time
+
+Every seat running a full gate or test run at once loads a machine until timing tests fail for no
+other reason ([#214](../../../issues/214)). `factory.sh run-exclusive -- <command> [args...]` runs one such
+command at a time across every seat of every team on the host, and the owner's shell:
+
+```
+./factory.sh run-exclusive -- make check
+./factory.sh run-exclusive -- env -u TMUX TEST_VOLUME=/Volumes/YourDrive test/e2e.sh
+```
+
+- **It waits, and never fails for a busy lock.** It prints who holds the lock (role, team file, pid,
+  folder), since when and the command, then a reminder every 5 minutes, and "got the lock" when its
+  turn comes. Ctrl-C while waiting exits 130 without running anything.
+- **The command** is an argument list, not a shell string (write a pipeline as `bash -c '...'`). It
+  runs in a process group of its own, so it cannot read the terminal. The exit status is the
+  command's, or 128 plus the signal that ended it. It needs no team file, so it works from any checkout.
+- **The lock** is one file per user, `~/Library/Application Support/software-factory/run-exclusive.lock`,
+  outside every team's state and checkout. Teams on one machine share the user, so they share the lock.
+  `FACTORY_RUN_LOCK` names another file (the e2e uses its own). The folder is owner-only, and a lock
+  file that is a symlink or a hard link is refused. Never remove the lock file while a run holds it: a
+  run that starts after that does not wait for the one holding it, and the holder can only say so when
+  it ends.
+- **The lock ends with the command.** It is released when the command ends or when its run is killed:
+  TERM, INT or HUP is passed on to the command's group, and a run killed with SIGKILL has its lock
+  dropped by the system. A command whose run was killed with SIGKILL is not stopped and can overlap
+  the next run. The lock is never handed to the command, so a daemon it leaves running (a tmux server)
+  does not hold it.
+- **Nested runs** (a gate script that calls `run-exclusive` again) run at once instead of waiting for
+  themselves, but only while the run that holds the lock is alive. A program left running from an
+  earlier run keeps its variable, and that alone does not skip the lock.

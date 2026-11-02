@@ -22,6 +22,8 @@
 #   migrate [role...]          remove clean worktrees that are not under the configured storage
 #                              volume, so `up` recreates them there (stop the seat first)
 #   down --yes [role...]       kill seats (worktrees are kept)
+#   run-exclusive -- <cmd...>  run a heavy command (a full gate, an e2e run) when no other run-exclusive
+#                              on this host runs one: waits, saying who holds the lock; needs no team file
 #
 # up, view, titles, say, attach and down refuse a team file outside teams/ on the default tmux
 # server, where the real team runs: it looks like a throwaway copy. Run it on a private server
@@ -58,6 +60,13 @@ while [ $# -gt 0 ]; do
     *) break ;;
   esac
 done
+
+# run-exclusive (#214) is for any seat of any team on this host, and the owner's shell, from any
+# checkout: it runs before the team file is read, so a missing or broken one does not stop a gate run.
+if [ "${1:-}" = run-exclusive ]; then
+  shift
+  exec ruby "$HERE/lib/run_exclusive.rb" "$@"
+fi
 
 die() { echo "error: $*" >&2; exit 1; }
 command -v ruby >/dev/null || die "ruby not found (it parses the team file; it ships with macOS)"
@@ -1566,5 +1575,5 @@ case "${1:-}" in
   attach) shift; cmd_attach "$@" ;;
   migrate) shift; cmd_migrate "$@" ;;
   down) shift; cmd_down "$@" ;;
-  *) sed -n '3,37p' "$0" | sed 's/^# \{0,1\}//'; exit 64 ;;
+  *) sed -n '3,39p' "$0" | sed 's/^# \{0,1\}//'; exit 64 ;;
 esac

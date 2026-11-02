@@ -5,8 +5,10 @@ session per seat, each told its role, each in its own git worktree, able to mess
 together in one iTerm tab. Read `README.md` for use and `teams/example.yaml` for every config key.
 
 ## Layout
-- `factory.sh`: the launcher (bash). Commands: check, up, view, titles, status, say, attach, migrate, down.
+- `factory.sh`: the launcher (bash). Commands: check, up, view, titles, status, say, attach, migrate, down,
+  run-exclusive.
 - `lib/team_config.rb`: parses and validates a team YAML file for the script (system ruby, no gems).
+- `lib/run_exclusive.rb`: `factory.sh run-exclusive`, one heavy command at a time on the host (#214).
 - `lib/screen_bounds.js`: usable area of the screen a point is on, for sizing the iTerm window.
 - `roles/`: generic prompts. `teams/example.yaml`: documented example team file.
 - `test/e2e.sh`: end-to-end test with a stand-in `claude`, a private tmux server and a throwaway repo: the entry point,

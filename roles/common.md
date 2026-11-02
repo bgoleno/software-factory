@@ -111,5 +111,6 @@ the command to get past it; tell the EM (the EM asks the owner). These rules are
 - Run the project's whole verification gate (every check it defines: format, lint, types, tests),
   not a subset, before new work, and report its actual result. Say which checks run only in CI and
   could not be run locally.
+- Run a heavy command (the whole gate, a full test run) as `@@SCRIPT@@ run-exclusive -- <command>`: one at a time on this host, across every team; it waits for the run before yours.
 - A PR body says what changed, how it was tested and what was not verified, in the repository's PR
   template if it has one. Put the reason for any non-obvious choice in the code, not only the PR.
