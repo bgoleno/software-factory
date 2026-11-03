@@ -641,19 +641,21 @@ class TeamConfig
   # worktree folder or a seat's working directory, or it is or holds the home folder or this factory
   # checkout. When the repository or a working directory holds this team's own state root (a team
   # working on software-factory keeps .state/ in its own checkout, tl on #200), a folder inside that
-  # state root is exempt from "sits inside" it: the other teams' folders are there.
-  def own_work_overlap(path)
+  # state root is exempt from "sits inside" it: the other teams' folders are there. So is a listed
+  # folder that is a team's state folder in a factory checkout's .state (listed_team_state?, #205).
+  def own_work_overlap(path, listed: false)
     fold = RUBY_PLATFORM.include?('darwin') ? ->(x) { x.unicode_normalize(:nfc).downcase } : ->(x) { x }
     within = ->(i, o) { i == o || i.start_with?(o.end_with?('/') ? o : "#{o}/") }
     r = fold.call(real_path(path))
     root = fold.call(real_path(File.dirname(state_dir)))
     holds = ->(dir) { within.call(fold.call(real_path(dir)), r) }
     in_root = r != root && within.call(r, root)
+    team_dir = listed && listed_team_state?(path)
     meets = lambda do |dir|
       d = fold.call(real_path(dir))
       # Only a repository or workdir that holds the state root strictly: one that IS the state root
       # would exempt all of itself (sec on #200).
-      in_root && root != d && within.call(root, d) ? holds.call(dir) : path_overlap?(path, dir)
+      team_dir || (in_root && root != d && within.call(root, d)) ? holds.call(dir) : path_overlap?(path, dir)
     end
     return "is, holds or sits inside this team's repository (repo.path)" if meets.call(repo_path)
     return "is, holds or sits inside this team's worktree folder (#{worktree_root})" if meets.call(worktree_root)
@@ -663,6 +665,31 @@ class TeamConfig
     return 'is or holds this factory checkout' if holds.call(INSTALL)
 
     nil
+  end
+
+  # A listed folder that may sit inside this team's own work (#205): a team pinned to a release whose
+  # repo.path is the factory checkout lists <factory>/.state/<team>, inside its repository. It must
+  # exist, hold team state, and have a parent whose real name, links resolved, is exactly .state: the
+  # factory's own git-ignored layout. A source folder that merely holds settings/, launch/ and
+  # prompts/, or one under a link named .state, does not qualify, and neither does a missing or empty
+  # folder (tl and sec on #204). File.realpath keeps the case as typed on a case-insensitive disk, so
+  # the parent's name is also taken as stored on disk, from its own folder's listing: a folder named
+  # .State on disk does not qualify however the entry spells it (tl on #223). A folder that can't be
+  # listed fails closed.
+  def listed_team_state?(path)
+    return false unless File.directory?(path) && team_state?(path)
+
+    parent = File.dirname(File.realpath(path))
+    File.basename(parent) == '.state' && Dir.children(File.dirname(parent)).include?('.state')
+  rescue SystemCallError
+    false
+  end
+
+  # An existing folder with nothing in it but a lone .DS_Store (#204): that team has not run up yet.
+  def empty_dir?(path)
+    File.directory?(path) && (Dir.children(path) - ['.DS_Store']).empty?
+  rescue SystemCallError
+    false
   end
 
   def team_state?(path)
@@ -721,18 +748,24 @@ class TeamConfig
       die "other_teams: observers of #{p} must be a list of role ids" unless obs.is_a?(Array) && obs.all? { |o| o.is_a?(String) }
       obs.each { |o| die "other_teams: observer #{o} of #{p} is not a role of this team" unless roles.key?(o) }
       die "other_teams: #{p} is this team's own state folder, holds it or sits inside it" if overlaps_own_state?(p)
-      what = own_work_overlap(p)
+      what = own_work_overlap(p, listed: true)
       die "other_teams: #{p} #{what}" if what
       # Only a team's state folder: a wrong entry such as ~, the volume or repo.path would deny this
       # team's own work, and a .state root one level too high would protect nothing while check said
-      # it did (tl on #200). One that does not exist yet (that team has not started) is accepted, and
-      # its denies apply once it does.
+      # it did (tl on #200). One that does not exist yet, or is still empty (that team has not run up,
+      # #204), is accepted, and its denies apply once it does. A .state root that is empty now is
+      # refused here as soon as any team starts under it, since it is then non-empty without team state.
       exists = File.exist?(p)
-      if exists && !team_state?(p)
+      empty = exists && empty_dir?(p)
+      if exists && !empty && !team_state?(p)
         die "other_teams: #{p} is not a team's state folder (it holds no settings/, launch/ and prompts/): " \
             'name the folder itself, such as <checkout>/.state/<team>'
       end
-      { 'path' => p, 'observers' => obs, 'how' => exists ? 'listed' : 'listed; not found yet' }
+      how = if !exists then 'listed; not found yet'
+            elsif empty then "listed; empty, not a team's state yet"
+            else 'listed'
+            end
+      { 'path' => p, 'observers' => obs, 'how' => how }
     end
   end
 

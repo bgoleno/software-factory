@@ -102,6 +102,13 @@ team's checkout holds only a link to it, which is never followed. So list them u
 - in the pinned team's file, each other team's state folder, for example
   `other_teams: [{ state: <factory>/.state/<other team> }]`.
 
+A listed folder that doesn't exist yet, or is still empty because that team hasn't run `up`, is
+accepted, and `check` says so. If the pinned team works on software-factory itself, so that its
+`repo.path` is `<factory>`, it may still list `<factory>/.state/<other team>` although that is inside
+its repository: a team's state folder whose parent is a real folder named `.state` is the one thing
+inside its own work that a team may list. That holds only once the other team has run `up`: until then
+the folder is missing or empty, and such a folder inside the repository is refused.
+
 Each seat then gets a Read deny on the listed team's triage records, message log and notes, and an Edit
 deny on the whole folder, from its next start. Add `observers: [<role>]` to an entry for a role the
 owner allows to read that team's log and notes. Run `check` with each team file to see the denies.
